@@ -56,8 +56,8 @@ if __name__ == '__main__':
     # запустим uvicorn сервер через python
     uvicorn.run(
         'main:app',
-        host='0.0.0.0',
-        port=8000,
+        host=f'{config.HOST}',
+        port=config.PORT,
         log_config=LOGGING,
         log_level=logging.DEBUG,
     )

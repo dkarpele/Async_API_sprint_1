@@ -1,11 +1,22 @@
-# Проектная работа 4 спринта
+# Service Async API
 
-**Важное сообщение для тимлида:** для ускорения проверки проекта укажите [ссылку](https://github.com/dkarpele/Async_API_sprint_1) на приватный репозиторий с командной работой в файле readme и отправьте свежее приглашение на аккаунт [BlueDeep](https://github.com/BigDeepBlue).
+## Project structure:
 
-В папке **tasks** ваша команда найдёт задачи, которые необходимо выполнить в первом спринте второго модуля.  Обратите внимание на задачи **00_create_repo** и **01_create_basis**. Они расцениваются как блокирующие для командной работы, поэтому их необходимо выполнить как можно раньше.
+* etl - Synchronization service Postgres -> Elasticsearch. It loads data from Postgres to ES indexes - movies, persons, genres. 
+* API service - uses FastApi Async framework to provide API for external services. It loads data from ElasticSearch or cached data from Redis. 
 
-Мы оценили задачи в стори поинтах, значения которых брались из [последовательности Фибоначчи](https://ru.wikipedia.org/wiki/Числа_Фибоначчи) (1,2,3,5,8,…).
 
-Вы можете разбить имеющиеся задачи на более маленькие, например, распределять между участниками команды не большие куски задания, а маленькие подзадачи. В таком случае не забудьте зафиксировать изменения в issues в репозитории.
+## Documentation
 
-**От каждого разработчика ожидается выполнение минимум 40% от общего числа стори поинтов в спринте.**
+[OpenAPI](http://localhost/api/openapi) documentation is available after creating the service.
+
+
+## Installation
+
+1. Clone [repo](https://github.com/dkarpele/Async_API_sprint_1).
+2. Create ```.env``` file according to ```.env.example```.
+3. Launch the project ```docker-compose up```.
+
+## Authors
+* Lubov Sovina [@lubovSovina](https://github.com/lubovSovina)
+* Denis Karpelevich [@dkarpele](https://github.com/dkarpele)
