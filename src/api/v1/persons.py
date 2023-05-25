@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from api.v1 import _details
 from models.model import Model
-from services.service import ListService
+from services.service import IdRequestService
 from services.person import get_person_service
 router = APIRouter()
 
@@ -21,10 +21,10 @@ class Person(Model):
 @router.get('/{person_id}',
             response_model=Person,
             summary="Информация о персоне")
-async def person_details(person_id: str,
-                         person_service: ListService = Depends(get_person_service))\
+async def person_details(person_service: IdRequestService = Depends(get_person_service),
+                         person_id: str = None)\
         -> Person:
-    person = await _details(person_id, person_service, 'persons')
+    person = await _details(person_service, person_id, 'persons')
 
     return Person(uuid=person.id,
                   full_name=person.full_name,
