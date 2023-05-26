@@ -27,6 +27,24 @@ services:
     networks:
       - backend
 
+  es-dump:
+    image: elasticdump/elasticsearch-dump
+    container_name: es-dump
+    privileged: true
+    networks:
+      - backend
+    volumes:
+      - ./es_index_movies/movies.mapping.json:/movies.mapping.json
+      - ./es_index_movies/movies.analyzer.json:/movies.analyzer.json
+      - ./es_index_movies/movies.data.json:/movies.data.json
+    depends_on:
+      - es
+    command: bash -c "
+      elasticdump --input=/movies.analyzer.json --output=http://es:9200/movies --type=analyzer
+      && elasticdump --input=/movies.mapping.json --output=http://es:9200/movies --type=mapping
+      && elasticdump --input=/movies.data.json --output=http://es:9200/movies --type=data
+      "
+
   es:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.6.2
     container_name: es
