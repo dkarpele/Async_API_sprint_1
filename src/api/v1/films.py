@@ -1,3 +1,5 @@
+import core.config as conf
+
 from http import HTTPStatus
 from pydantic import Field
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +16,8 @@ router = APIRouter()
 # https://pydantic-docs.helpmanual.io
 # У неё есть встроенные механизмы валидации, сериализации и десериализации
 # Также она основана на дата-классах
+
+INDEX = 'movies'
 
 
 # Модель ответа API
@@ -36,6 +40,41 @@ class FilmList(Model):
     imdb_rating: float | None = None
 
 
+@router.get('/search',
+            response_model=Page[FilmList],
+            summary="Поиск кинопроизведений",
+            description="Полнотекстовый поиск по кинопроизведениям",
+            response_description="Название и рейтинг фильма",
+            tags=['Полнотекстовый поиск']
+            )
+async def film_search(film_service: ListService = Depends(get_film_list_service),
+                      query: str = Query(None,
+                                         description=conf.SEARCH_DESC),
+                      sort: str = Query(None,
+                                        description=conf.SORT_DESC)
+                      ) -> Page[FilmList]:
+    if query:
+        search = {
+            "bool": {
+                "must": [
+                    {"match": {"title": query}}
+                ]
+            }
+        }
+    else:
+        search = None
+    films = await _list(film_service,
+                        index=INDEX,
+                        search=search,
+                        sort=sort,
+                        query=query)
+
+    res = [FilmList(uuid=film.id,
+                    title=film.title,
+                    imdb_rating=film.imdb_rating) for film in films]
+    return paginate(res)
+
+
 # С помощью декоратора регистрируем обработчик film_details
 # На обработку запросов по адресу <some_prefix>/some_id
 # Позже подключим роутер к корневому роутеру
@@ -51,7 +90,7 @@ class FilmList(Model):
             )
 async def film_details(film_service: IdRequestService = Depends(get_film_service),
                        film_id: str = None) -> Film:
-    film = await _details(film_service, film_id, 'movies')
+    film = await _details(film_service, film_id, INDEX)
     # Перекладываем данные из models.Film в Film.
     # Обратите внимание, что у модели бизнес-логики есть поле description,
     # которое отсутствует в модели ответа API.
@@ -72,27 +111,16 @@ async def film_details(film_service: IdRequestService = Depends(get_film_service
 @router.get('/',
             response_model=Page[FilmList],
             summary="Список фильмов",
-            description="Список фильмов с информацией о id, названии, рейтинге"
+            description="Список фильмов с информацией о id, названии, рейтинге",
+            response_description="id, название, рейтинг",
             )
 async def film_list(film_service: ListService = Depends(get_film_list_service),
                     sort: str = Query(None,
-                                      description="По умолчанию по возрастанию."
-                                                  "'-' в начале - по убыванию."))\
-        -> Page[FilmList]:
-    films = await _list(film_service, 'movies', sort)
+                                      description=conf.SORT_DESC)
+                    ) -> Page[FilmList]:
+    films = await _list(film_service, INDEX, sort=sort)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,
                     imdb_rating=film.imdb_rating) for film in films]
     return paginate(res)
-
-# TODO: placeholder for search method
-# @router.get("/search",
-#          response_model=list[Film],
-#          summary="Поиск кинопроизведений",
-#          description="Полнотекстовый поиск по кинопроизведениям",
-#          response_description="Название и рейтинг фильма",
-#          tags=['Полнотекстовый поиск']
-#          )
-# async def film_search():
-#     ...
