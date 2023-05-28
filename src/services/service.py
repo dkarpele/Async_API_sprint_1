@@ -56,7 +56,7 @@ class ListService:
         if search:
             key = f'search:{query}'
         else:
-            key = None
+            key = ''
         entities = await self._get_from_cache(key)
         if not entities:
             entities = await self._get_from_elastic(index, sort, search)
@@ -92,7 +92,7 @@ class ListService:
 
         return [self.model(**doc['_source']) for doc in docs['hits']['hits']]
 
-    async def _get_from_cache(self, name: str) -> Optional:
+    async def _get_from_cache(self, name: str = None) -> Optional:
         data = await self.redis.hgetall(name)
         if not data:
             return None
@@ -100,7 +100,8 @@ class ListService:
         res = [self.model.parse_raw(i) for i in data.values()]
         return res
 
-    async def _put_to_cache(self, key, entities: list):
+    async def _put_to_cache(self, key: str, entities: list):
         entities_dict: dict =\
             {f'e-{item}': entity.json() for item, entity in enumerate(entities)}
+
         return await self.redis.hset(name=key, mapping=entities_dict)
