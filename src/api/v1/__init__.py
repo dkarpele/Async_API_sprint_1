@@ -7,7 +7,7 @@ async def _details(_service, _id, index: str = None):
     res = await _service.get_by_id(_id, index)
     if not res:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
-                            detail=f'{index} not found')
+                            detail=f'{_id} not found')
     return res
 
 
@@ -15,8 +15,8 @@ async def _list(_service,
                 index: str = None,
                 sort: str = None,
                 search: dict = None,
-                query: str = None):
-    res = await _service.get_list(index, sort, search, query)
+                key: str = None):
+    res = await _service.get_list(index, sort, search, key)
     if not res:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
                             detail=f'{index} not found')

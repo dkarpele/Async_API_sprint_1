@@ -56,18 +56,20 @@ async def film_search(film_service: ListService = Depends(get_film_list_service)
     if query:
         search = {
             "bool": {
-                "must": [
+                "must":
                     {"match": {"title": query}}
-                ]
             }
         }
+        key = f'{INDEX}:title:{query}:sort:{sort}'
     else:
-        search = None
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
+                            detail=f'Empty `query` attribute')
+
     films = await _list(film_service,
                         index=INDEX,
                         search=search,
                         sort=sort,
-                        query=query)
+                        key=key)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,
@@ -87,6 +89,8 @@ async def film_search(film_service: ListService = Depends(get_film_list_service)
             response_model=Film,
             summary="Детали фильма",
             description="Доступная информация по одному фильму",
+            response_description="id, название, рейтинг, описание, жанр, "
+                                 "список актеров, режиссеров и сценаристов",
             )
 async def film_details(film_service: IdRequestService = Depends(get_film_service),
                        film_id: str = None) -> Film:
@@ -116,9 +120,44 @@ async def film_details(film_service: IdRequestService = Depends(get_film_service
             )
 async def film_list(film_service: ListService = Depends(get_film_list_service),
                     sort: str = Query(None,
-                                      description=conf.SORT_DESC)
+                                      description=conf.SORT_DESC),
+                    genre: str = Query(None,
+                                       description=conf.GENRE_DESC),
+                    page: int = Query(None,
+                                      description=conf.PAGE_DESC),
+                    size: int = Query(None,
+                                      description=conf.SIZE_DESC),
                     ) -> Page[FilmList]:
-    films = await _list(film_service, INDEX, sort=sort)
+    if genre:
+        # TODO: stub for testing ?genre=Comedy
+        search = {
+            "bool": {
+                "must":
+                    {"match": {"genre": genre}}
+            }
+        }
+        # TODO: change search to genre.id after movies index update
+        # search = {
+        #     "nested": {
+        #         "path": "genre",
+        #         "query": {
+        #             "bool": {
+        #                 "must":
+        #                     {"match": {"genre.id": genre}}
+        #             }
+        #         }
+        #     }
+        # }
+        key = f'{INDEX}:genre:{genre}:sort:{sort}'
+    else:
+        search = None
+        key = None
+
+    films = await _list(film_service,
+                        index=INDEX,
+                        sort=sort,
+                        search=search,
+                        key=key)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,

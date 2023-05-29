@@ -52,17 +52,18 @@ class ListService:
                        index: str,
                        sort: str = None,
                        search: dict = None,
-                       query: str = None) -> Optional:
-        if search:
-            key = f'search:{query}'
+                       key: str = None) -> Optional:
+
+        if key:
+            entities = await self._get_from_cache(key)
         else:
-            key = ''
-        entities = await self._get_from_cache(key)
+            entities = None
         if not entities:
             entities = await self._get_from_elastic(index, sort, search)
             if not entities:
                 return None
-            await self._put_to_cache(key, entities)
+            if key:
+                await self._put_to_cache(key, entities)
 
         return entities
 
@@ -102,6 +103,6 @@ class ListService:
 
     async def _put_to_cache(self, key: str, entities: list):
         entities_dict: dict =\
-            {f'e-{item}': entity.json() for item, entity in enumerate(entities)}
-
-        return await self.redis.hset(name=key, mapping=entities_dict)
+            {item: entity.json() for item, entity in enumerate(entities)}
+        await self.redis.hset(name=key, mapping=entities_dict)
+        await self.redis.expire(name=key, time=CACHE_EXPIRE_IN_SECONDS)
