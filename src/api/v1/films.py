@@ -1,10 +1,8 @@
 import core.config as conf
 
 from http import HTTPStatus
-from pydantic import Field
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_pagination import Page, paginate
-from typing import Optional
 from api.v1 import _details, _list, _get_cache_key
 from services.service import IdRequestService, ListService
 from services.film import get_film_service, get_film_list_service
@@ -26,12 +24,10 @@ class Film(Model):
     title: str
     imdb_rating: float | None = None
     description: str | None = None
-    # TODO: genre should have type list[dict]
-    genre: list[str] | None = None
+    genre: list[dict] | None = None
     actors: list[dict] | None = None
     writers: list[dict] | None = None
-    # TODO: directors should have type list[dict]
-    directors: list[str] | None = None
+    directors: list[dict] | None = None
 
 
 class FilmList(Model):
@@ -140,25 +136,17 @@ async def film_list(film_service: ListService = Depends(get_film_list_service),
                     ) -> Page[FilmList]:
 
     if genre:
-        # TODO: stub for testing ?genre=Comedy. Will be replaced by ?genre=uuid
         search = {
-            "bool": {
-                "must":
-                    {"match": {"genre": genre}}
+            "nested": {
+                "path": "genre",
+                "query": {
+                    "bool": {
+                        "must":
+                            {"match": {"genre.id": genre}}
+                    }
+                }
             }
         }
-        # TODO: change search to genre.id after movies index update
-        # search = {
-        #     "nested": {
-        #         "path": "genre",
-        #         "query": {
-        #             "bool": {
-        #                 "must":
-        #                     {"match": {"genre.id": genre}}
-        #             }
-        #         }
-        #     }
-        # }
     else:
         search = None
 
