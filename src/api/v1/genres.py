@@ -9,7 +9,9 @@ from api.v1 import _details, _list
 from models.model import Model
 from services.service import IdRequestService, ListService
 from services.genre import get_genre_service, get_genre_list_service
+
 router = APIRouter()
+INDEX = 'genres'
 
 
 # Модель ответа API

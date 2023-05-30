@@ -8,7 +8,9 @@ from api.v1 import _details
 from models.model import Model
 from services.service import IdRequestService
 from services.person import get_person_service
+
 router = APIRouter()
+INDEX = 'persons'
 
 
 # Модель ответа API

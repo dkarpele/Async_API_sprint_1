@@ -5,18 +5,18 @@ from pydantic import Field
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_pagination import Page, paginate
 from typing import Optional
-from api.v1 import _details, _list
+from api.v1 import _details, _list, _get_cache_key
 from services.service import IdRequestService, ListService
 from services.film import get_film_service, get_film_list_service
 from models.model import Model
-# Объект router, в котором регистрируем обработчики
-router = APIRouter()
 
 # FastAPI в качестве моделей использует библиотеку pydantic
 # https://pydantic-docs.helpmanual.io
 # У неё есть встроенные механизмы валидации, сериализации и десериализации
 # Также она основана на дата-классах
 
+# Объект router, в котором регистрируем обработчики
+router = APIRouter()
 INDEX = 'movies'
 
 
@@ -51,8 +51,13 @@ async def film_search(film_service: ListService = Depends(get_film_list_service)
                       query: str = Query(None,
                                          description=conf.SEARCH_DESC),
                       sort: str = Query(None,
-                                        description=conf.SORT_DESC)
+                                        description=conf.SORT_DESC),
+                      page: int = Query(None,
+                                        description=conf.PAGE_DESC),
+                      size: int = Query(None,
+                                        description=conf.SIZE_DESC),
                       ) -> Page[FilmList]:
+
     if query:
         search = {
             "bool": {
@@ -60,10 +65,15 @@ async def film_search(film_service: ListService = Depends(get_film_list_service)
                     {"match": {"title": query}}
             }
         }
-        key = f'{INDEX}:title:{query}:sort:{sort}'
     else:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
                             detail=f'Empty `query` attribute')
+
+    key = await _get_cache_key({'sort': sort,
+                                'query': query,
+                                'page': page,
+                                'size': size},
+                               INDEX)
 
     films = await _list(film_service,
                         index=INDEX,
@@ -128,8 +138,9 @@ async def film_list(film_service: ListService = Depends(get_film_list_service),
                     size: int = Query(None,
                                       description=conf.SIZE_DESC),
                     ) -> Page[FilmList]:
+
     if genre:
-        # TODO: stub for testing ?genre=Comedy
+        # TODO: stub for testing ?genre=Comedy. Will be replaced by ?genre=uuid
         search = {
             "bool": {
                 "must":
@@ -148,10 +159,14 @@ async def film_list(film_service: ListService = Depends(get_film_list_service),
         #         }
         #     }
         # }
-        key = f'{INDEX}:genre:{genre}:sort:{sort}'
     else:
         search = None
-        key = None
+
+    key = await _get_cache_key({'sort': sort,
+                                'genre': genre,
+                                'page': page,
+                                'size': size},
+                               INDEX)
 
     films = await _list(film_service,
                         index=INDEX,
