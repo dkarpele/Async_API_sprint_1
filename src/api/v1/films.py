@@ -65,6 +65,7 @@ async def film_search(film_service: ListService = Depends(get_film_list_service)
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
                             detail=f'Empty `query` attribute')
 
+    # Redis caching
     key = await _get_cache_key({'sort': sort,
                                 'query': query,
                                 'page': page,

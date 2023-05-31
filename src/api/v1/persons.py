@@ -1,14 +1,16 @@
+import core.config as conf
+
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from fastapi_pagination import Page, paginate
 
-from api.v1 import _details, _list, _get_cache_key
+from api.v1 import _details, _list, _get_cache_key, _films_for_person
 from models.model import Model
 from services.service import IdRequestService, ListService
-from services.person import get_person_service
+from services.person import get_person_service, get_person_list_service
 from services.film import get_film_list_service
 from api.v1.films import FilmList
 router = APIRouter()
@@ -20,6 +22,53 @@ class Person(Model):
     uuid: str
     full_name: str | None = None
     films: list[dict] | None = None
+
+
+@router.get('/search',
+            response_model=Page[Person],
+            summary="Поиск персон",
+            description="Полнотекстовый поиск по персонам",
+            response_description="id, имя, id фильма и роли персоны в этом "
+                                 "фильме",
+            tags=['Полнотекстовый поиск']
+            )
+async def person_search(person_service: ListService = Depends(get_person_list_service),
+                        film_service: ListService = Depends(get_film_list_service),
+                        query: str = Query(None,
+                                           description=conf.SEARCH_DESC),
+                        page: int = Query(None,
+                                          description=conf.PAGE_DESC),
+                        size: int = Query(None,
+                                          description=conf.SIZE_DESC),
+                        ) -> Page[Person]:
+
+    if query:
+        search = {
+            "bool": {
+                "must":
+                    {"match": {"full_name": query}}
+            }
+        }
+    else:
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
+                            detail=f'Empty `query` attribute')
+
+    key = await _get_cache_key({'query': query,
+                                'page': page,
+                                'size': size},
+                               INDEX)
+
+    persons = await _list(person_service,
+                          index=INDEX,
+                          search=search,
+                          key=key)
+
+    res = [Person(uuid=person.id,
+                  full_name=person.full_name,
+                  films=await _films_for_person(film_service, person.id))
+           for person in persons]
+
+    return paginate(res)
 
 
 @router.get('/{person_id}',
@@ -35,78 +84,8 @@ async def person_details(person_service: IdRequestService = Depends(get_person_s
 
     person = await _details(person_service, person_id, INDEX)
 
-    search = {
-        "bool": {
-            "should": [
-                {"nested": {
-                    "path": "actors",
-                    "query": {
-                        "bool": {
-                            "must": {"match": {
-                                "actors.id": person_id}}
-                        }
-                    }
-                }},
-                {"nested": {
-                    "path": "writers",
-                    "query": {
-                        "bool": {
-                            "must": {
-                                "match": {
-                                    "writers.id": person_id}}
-                        }
-                    }
-                }},
-                {"nested": {
-                    "path": "directors",
-                    "query": {
-                        "bool": {
-                            "must": {
-                                "match": {
-                                    "directors.id": person_id}}
-                        }
-                    }
-                }}
-            ]
-        }
-    }
-
-    films = await _list(film_service, index='movies', search=search)
-
-    def collect_roles(movie):
-        film_structure = {"uuid": movie.id, "roles": []}
-
-        def roles_list(persons_list, role):
-            if person_id in [actor["id"] for actor in persons_list]:
-                film_structure["roles"].append(role)
-
-        roles_list(movie.actors, 'actor')
-        roles_list(movie.writers, 'writer')
-        roles_list(movie.directors, 'director')
-        return film_structure
-
-    films_res = []
-    for film in films:
-        films_structure = collect_roles(film)
-        films_res.append(films_structure)
-
+    films_res = await _films_for_person(film_service, person_id)
     return Person(uuid=person.id,
                   full_name=person.full_name,
                   films=films_res)
 
-
-@router.get('/{person_id}/film',
-            response_model=Page[FilmList],
-            summary="Фильмы по персоне.",
-            description="Список Фильмов по персоне.",
-            response_description="Список фильмов с id, название, рейтинг",
-            )
-async def films_by_person(film_service: ListService = Depends(get_film_list_service),
-                          person_id: str = None) -> Page[FilmList]:
-
-    films = ...
-
-    res = [FilmList(uuid=film.id,
-                    title=film.title,
-                    imdb_rating=film.imdb_rating) for film in films]
-    return paginate(res)
