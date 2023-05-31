@@ -2,6 +2,8 @@ from http import HTTPStatus
 
 from fastapi import HTTPException
 
+from src.models.films import Film
+
 
 async def _details(_service, _id: str, index: str = None):
     res = await _service.get_by_id(_id, index)
@@ -70,8 +72,10 @@ async def _films_for_person(_service, person_id: str = None) -> list[dict]:
         }
     }
 
-    films = await _list(_service, index='movies', search=search)
+    return await _list(_service, index='movies', search=search)
 
+
+def _films_to_dict(person_id: str = None, films:list[Film] = []) -> list[dict]:
     def collect_roles(movie):
         film_structure = {"uuid": movie.id, "roles": []}
 
