@@ -4,9 +4,10 @@ import uvicorn
 from elasticsearch import AsyncElasticsearch
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
+from fastapi_pagination import add_pagination
 from redis.asyncio import Redis
 
-from api.v1 import films
+from api.v1 import films, genres, persons
 from core import config
 from core.logger import LOGGING
 from db import elastic, redis
@@ -14,8 +15,8 @@ from db import elastic, redis
 app = FastAPI(
     # Конфигурируем название проекта. Оно будет отображаться в документации
     title=config.PROJECT_NAME,
-    description="Информация о фильмах, жанрах и людях, участвовавших в создании"
-                " произведения",
+    description="Информация о фильмах, жанрах и людях, участвовавших в "
+                "создании произведения",
     version="1.0.0",
     # Адрес документации в красивом интерфейсе
     docs_url='/api/openapi',
@@ -47,7 +48,9 @@ async def shutdown():
 # Подключаем роутер к серверу, указав префикс /v1/films
 # Теги указываем для удобства навигации по документации
 app.include_router(films.router, prefix='/api/v1/films', tags=['films'])
-
+app.include_router(genres.router, prefix='/api/v1/genres', tags=['genres'])
+app.include_router(persons.router, prefix='/api/v1/persons', tags=['persons'])
+add_pagination(app)
 
 if __name__ == '__main__':
     # Приложение может запускаться командой

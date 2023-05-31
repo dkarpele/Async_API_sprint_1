@@ -2,7 +2,7 @@
 
 ## Project structure:
 
-* etl - Synchronization service Postgres -> Elasticsearch. It loads data from Postgres to ES indexes - movies, persons, genres. 
+* es_index - contains dumps of ES indexes `movies`, `genres`, `persons`. Indexes upload to es container after launching the project.   
 * API service - uses FastApi Async framework to provide API for external services. It loads data from ElasticSearch or cached data from Redis. 
 
 
