@@ -35,7 +35,7 @@ async def _get_cache_key(args_dict: dict,
     return f'index:{index}{key}' if key else None
 
 
-async def _films_for_person(_service, person_id: str = None) -> list[dict]:
+async def _films_for_person(_service, person_id: str = None, key: str = None) -> list[Film]:
     search = {
         "bool": {
             "should": [
@@ -72,10 +72,10 @@ async def _films_for_person(_service, person_id: str = None) -> list[dict]:
         }
     }
 
-    return await _list(_service, index='movies', search=search)
+    return await _list(_service, index='movies', search=search, key=key)
 
 
-def _films_to_dict(person_id: str = None, films:list[Film] = []) -> list[dict]:
+def _films_to_dict(person_id: str = None, films: list[Film] = None) -> list[dict]:
     def collect_roles(movie):
         film_structure = {"uuid": movie.id, "roles": []}
 

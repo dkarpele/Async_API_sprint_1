@@ -13,6 +13,7 @@ from services.service import IdRequestService, ListService
 from services.person import get_person_service, get_person_list_service
 from services.film import get_film_list_service
 from api.v1.films import FilmList
+
 router = APIRouter()
 INDEX = 'persons'
 
@@ -41,7 +42,6 @@ async def person_search(person_service: ListService = Depends(get_person_list_se
                         size: int = Query(None,
                                           description=conf.SIZE_DESC),
                         ) -> Page[Person]:
-
     if query:
         search = {
             "bool": {
@@ -65,7 +65,13 @@ async def person_search(person_service: ListService = Depends(get_person_list_se
 
     res = [Person(uuid=person.id,
                   full_name=person.full_name,
-                  films=_films_to_dict(person.id, await _films_for_person(film_service, person.id)))
+                  films=_films_to_dict(person.id,
+                                       await _films_for_person(film_service, person.id,
+                                                               key=await _get_cache_key({'person_id': person.id,
+                                                                                         'query': query,
+                                                                                         'page': page,
+                                                                                         'size': size},
+                                                                                        INDEX))))
            for person in persons]
 
     return paginate(res)
@@ -81,10 +87,12 @@ async def person_search(person_service: ListService = Depends(get_person_list_se
 async def person_details(person_service: IdRequestService = Depends(get_person_service),
                          film_service: ListService = Depends(get_film_list_service),
                          person_id: str = None) -> Person:
-
     person = await _details(person_service, person_id, INDEX)
 
-    films_res = _films_to_dict(person_id, await _films_for_person(film_service, person_id))
+    key = await _get_cache_key({'person_id': person_id},
+                               INDEX)
+
+    films_res = _films_to_dict(person_id, await _films_for_person(film_service, person_id, key))
     return Person(uuid=person.id,
                   full_name=person.full_name,
                   films=films_res)
@@ -98,8 +106,10 @@ async def person_details(person_service: IdRequestService = Depends(get_person_s
             )
 async def films_by_person(film_service: ListService = Depends(get_film_list_service),
                           person_id: str = None) -> Page[FilmList]:
-
-    films = await _films_for_person(film_service, person_id)
+    key = await _get_cache_key({'person_id': person_id,
+                                'films': 1},
+                               INDEX)
+    films = await _films_for_person(film_service, person_id, key)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,
