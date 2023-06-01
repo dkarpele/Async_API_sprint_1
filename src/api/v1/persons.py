@@ -3,18 +3,17 @@ import core.config as conf
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from fastapi_pagination import Page, paginate
+from typing import Annotated
 
 from api.v1 import _details, _list, _get_cache_key, _films_for_person, _films_to_dict
-from models.model import Model
+from models.model import Model, PaginateModel
 from services.service import IdRequestService, ListService
 from services.person import get_person_service, get_person_list_service
 from services.film import get_film_list_service
 from api.v1.films import FilmList
 
 router = APIRouter()
+Paginate = Annotated[PaginateModel, Depends(PaginateModel)]
 INDEX = 'persons'
 
 
@@ -26,22 +25,23 @@ class Person(Model):
 
 
 @router.get('/search',
-            response_model=Page[Person],
+            response_model=list[Person],
             summary="Поиск персон",
             description="Полнотекстовый поиск по персонам",
             response_description="id, имя, id фильма и роли персоны в этом "
                                  "фильме",
             tags=['Полнотекстовый поиск']
             )
-async def person_search(person_service: ListService = Depends(get_person_list_service),
+async def person_search(pagination: Paginate,
+                        person_service: ListService = Depends(get_person_list_service),
                         film_service: ListService = Depends(get_film_list_service),
                         query: str = Query(None,
                                            description=conf.SEARCH_DESC),
-                        page: int = Query(None,
-                                          description=conf.PAGE_DESC),
-                        size: int = Query(None,
-                                          description=conf.SIZE_DESC),
-                        ) -> Page[Person]:
+                        ) -> list[Person]:
+
+    page = pagination.page_number
+    size = pagination.page_size
+
     if query:
         search = {
             "bool": {
@@ -61,20 +61,24 @@ async def person_search(person_service: ListService = Depends(get_person_list_se
     persons = await _list(person_service,
                           index=INDEX,
                           search=search,
-                          key=key)
+                          key=key,
+                          page=page,
+                          size=size)
 
     res = [Person(uuid=person.id,
                   full_name=person.full_name,
-                  films=_films_to_dict(person.id,
-                                       await _films_for_person(film_service, person.id,
-                                                               key=await _get_cache_key({'person_id': person.id,
-                                                                                         'query': query,
-                                                                                         'page': page,
-                                                                                         'size': size},
-                                                                                        INDEX))))
+                  films=_films_to_dict(
+                      person.id,
+                      await _films_for_person(film_service,
+                                              person.id,
+                                              key=await _get_cache_key({'person_id': person.id,
+                                                                        'query': query,
+                                                                        'page': page,
+                                                                        'size': size},
+                                                                       INDEX))))
            for person in persons]
 
-    return paginate(res)
+    return res
 
 
 @router.get('/{person_id}',
@@ -90,28 +94,31 @@ async def person_details(person_service: IdRequestService = Depends(get_person_s
     person = await _details(person_service, person_id, INDEX)
 
     key = await _get_cache_key({'person_id': person_id},
-                               INDEX)
+                               'movies')
 
-    films_res = _films_to_dict(person_id, await _films_for_person(film_service, person_id, key))
+    films_res = _films_to_dict(person_id,
+                               await _films_for_person(film_service,
+                                                       person_id,
+                                                       key))
     return Person(uuid=person.id,
                   full_name=person.full_name,
                   films=films_res)
 
 
 @router.get('/{person_id}/film',
-            response_model=Page[FilmList],
+            response_model=list[FilmList],
             summary="Фильмы по персоне.",
             description="Список Фильмов по персоне.",
             response_description="Список фильмов с id, название, рейтинг",
             )
 async def films_by_person(film_service: ListService = Depends(get_film_list_service),
-                          person_id: str = None) -> Page[FilmList]:
+                          person_id: str = None) -> list[FilmList]:
     key = await _get_cache_key({'person_id': person_id,
                                 'films': 1},
-                               INDEX)
+                               'movies')
     films = await _films_for_person(film_service, person_id, key)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,
                     imdb_rating=film.imdb_rating) for film in films]
-    return paginate(res)
+    return res
