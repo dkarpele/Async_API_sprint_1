@@ -5,7 +5,8 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Annotated
 
-from api.v1 import _details, _list, _get_cache_key, _films_for_person, _films_to_dict
+from api.v1 import _details, _list, _get_cache_key, _films_for_person, \
+    _films_to_list
 from models.model import Model, PaginateModel
 from services.service import IdRequestService, ListService
 from services.person import get_person_service, get_person_list_service
@@ -67,15 +68,16 @@ async def person_search(pagination: Paginate,
 
     res = [Person(uuid=person.id,
                   full_name=person.full_name,
-                  films=_films_to_dict(
+                  films=_films_to_list(
                       person.id,
-                      await _films_for_person(film_service,
-                                              person.id,
-                                              key=await _get_cache_key({'person_id': person.id,
-                                                                        'query': query,
-                                                                        'page': page,
-                                                                        'size': size},
-                                                                       INDEX))))
+                      await _films_for_person(
+                          film_service,
+                          person.id,
+                          key=await _get_cache_key({'person_id': person.id,
+                                                    'query': query,
+                                                    'page': page,
+                                                    'size': size},
+                                                   'movies'))))
            for person in persons]
 
     return res
@@ -96,7 +98,7 @@ async def person_details(person_service: IdRequestService = Depends(get_person_s
     key = await _get_cache_key({'person_id': person_id},
                                'movies')
 
-    films_res = _films_to_dict(person_id,
+    films_res = _films_to_list(person_id,
                                await _films_for_person(film_service,
                                                        person_id,
                                                        key))
@@ -113,8 +115,7 @@ async def person_details(person_service: IdRequestService = Depends(get_person_s
             )
 async def films_by_person(film_service: ListService = Depends(get_film_list_service),
                           person_id: str = None) -> list[FilmList]:
-    key = await _get_cache_key({'person_id': person_id,
-                                'films': 1},
+    key = await _get_cache_key({'person_id': person_id},
                                'movies')
     films = await _films_for_person(film_service, person_id, key)
 

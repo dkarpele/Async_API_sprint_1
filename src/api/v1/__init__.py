@@ -81,7 +81,7 @@ async def _films_for_person(_service, person_id: str = None, key: str = None) \
     return await _list(_service, index='movies', search=search, key=key)
 
 
-def _films_to_dict(person_id: str = None, films: list[Film] = None) \
+def _films_to_list(person_id: str = None, films: list[Film] = None) \
         -> list[dict]:
     def collect_roles(movie):
         film_structure = {"uuid": movie.id, "roles": []}
