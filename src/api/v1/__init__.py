@@ -17,25 +17,31 @@ async def _list(_service,
                 index: str = None,
                 sort: str = None,
                 search: dict = None,
-                key: str = None):
-    res = await _service.get_list(index, sort, search, key)
+                key: str = None,
+                page: int = None,
+                size: int = None):
+    res = await _service.get_list(index, sort, search, key, page, size)
     if not res:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND,
                             detail=f'{index} not found')
     return res
 
 
-async def _get_cache_key(args_dict: dict,
+async def _get_cache_key(args_dict: dict = None,
                          index: str = None) -> str:
+    if not args_dict:
+        args_dict = {}
+
     key = ''
     for k, v in args_dict.items():
         if v:
             key += f':{k}:{v}'
 
-    return f'index:{index}{key}' if key else None
+    return f'index:{index}{key}' if key else f'index:{index}'
 
 
-async def _films_for_person(_service, person_id: str = None, key: str = None) -> list[Film]:
+async def _films_for_person(_service, person_id: str = None, key: str = None) \
+        -> list[Film]:
     search = {
         "bool": {
             "should": [
@@ -75,7 +81,8 @@ async def _films_for_person(_service, person_id: str = None, key: str = None) ->
     return await _list(_service, index='movies', search=search, key=key)
 
 
-def _films_to_dict(person_id: str = None, films: list[Film] = None) -> list[dict]:
+def _films_to_list(person_id: str = None, films: list[Film] = None) \
+        -> list[dict]:
     def collect_roles(movie):
         film_structure = {"uuid": movie.id, "roles": []}
 

@@ -1,20 +1,39 @@
 import logging
 
 import uvicorn
+from contextlib import asynccontextmanager
 from elasticsearch import AsyncElasticsearch
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
-from fastapi_pagination import add_pagination
 from redis.asyncio import Redis
 
 from api.v1 import films, genres, persons
-from core import config
+from core.config import settings
 from core.logger import LOGGING
 from db import elastic, redis
 
+
+async def startup():
+    redis.redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT,
+                        ssl=False)
+    elastic.es = AsyncElasticsearch(
+        hosts=[f'{settings.ELASTIC_HOST}:{settings.ELASTIC_PORT}'])
+
+
+async def shutdown():
+    await redis.redis.close()
+    await elastic.es.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await startup()
+    yield
+    await shutdown()
+
 app = FastAPI(
     # Конфигурируем название проекта. Оно будет отображаться в документации
-    title=config.PROJECT_NAME,
+    title=settings.PROJECT_NAME,
     description="Информация о фильмах, жанрах и людях, участвовавших в "
                 "создании произведения",
     version="1.0.0",
@@ -26,31 +45,15 @@ app = FastAPI(
     # и заменить стандартный JSON-сереализатор на более шуструю версию,
     # написанную на Rust
     default_response_class=ORJSONResponse,
-)
+    lifespan=lifespan)
 
-
-@app.on_event('startup')
-async def startup():
-    # Подключаемся к базам при старте сервера
-    # Подключиться можем при работающем event-loop
-    # Поэтому логика подключения происходит в асинхронной функции
-    redis.redis = Redis(host=config.REDIS_HOST, port=config.REDIS_PORT,
-                        ssl=False)
-    elastic.es = AsyncElasticsearch(hosts=[f'{config.ELASTIC_HOST}:{config.ELASTIC_PORT}'])
-
-
-@app.on_event('shutdown')
-async def shutdown():
-    # Отключаемся от баз при выключении сервера
-    await redis.redis.close()
-    await elastic.es.close()
 
 # Подключаем роутер к серверу, указав префикс /v1/films
 # Теги указываем для удобства навигации по документации
 app.include_router(films.router, prefix='/api/v1/films', tags=['films'])
 app.include_router(genres.router, prefix='/api/v1/genres', tags=['genres'])
 app.include_router(persons.router, prefix='/api/v1/persons', tags=['persons'])
-add_pagination(app)
+
 
 if __name__ == '__main__':
     # Приложение может запускаться командой
@@ -59,8 +62,8 @@ if __name__ == '__main__':
     # запустим uvicorn сервер через python
     uvicorn.run(
         'main:app',
-        host=f'{config.HOST}',
-        port=config.PORT,
+        host=f'{settings.HOST}',
+        port=settings.PORT,
         log_config=LOGGING,
         log_level=logging.DEBUG,
     )

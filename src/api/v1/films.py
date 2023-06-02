@@ -2,11 +2,12 @@ import core.config as conf
 
 from http import HTTPStatus
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi_pagination import Page, paginate
+from typing import Annotated
+
 from api.v1 import _details, _list, _get_cache_key
 from services.service import IdRequestService, ListService
 from services.film import get_film_service, get_film_list_service
-from models.model import Model
+from models.model import Model, PaginateModel
 
 # FastAPI в качестве моделей использует библиотеку pydantic
 # https://pydantic-docs.helpmanual.io
@@ -15,6 +16,7 @@ from models.model import Model
 
 # Объект router, в котором регистрируем обработчики
 router = APIRouter()
+Paginate = Annotated[PaginateModel, Depends(PaginateModel)]
 INDEX = 'movies'
 
 
@@ -37,23 +39,22 @@ class FilmList(Model):
 
 
 @router.get('/search',
-            response_model=Page[FilmList],
+            response_model=list[FilmList],
             summary="Поиск кинопроизведений",
             description="Полнотекстовый поиск по кинопроизведениям",
             response_description="Название и рейтинг фильма",
             tags=['Полнотекстовый поиск']
             )
-async def film_search(film_service: ListService = Depends(get_film_list_service),
+async def film_search(pagination: Paginate,
+                      film_service: ListService = Depends(get_film_list_service),
                       query: str = Query(None,
                                          description=conf.SEARCH_DESC),
                       sort: str = Query(None,
                                         description=conf.SORT_DESC),
-                      page: int = Query(None,
-                                        description=conf.PAGE_DESC),
-                      size: int = Query(None,
-                                        description=conf.SIZE_DESC),
-                      ) -> Page[FilmList]:
+                      ) -> list[FilmList]:
 
+    page = pagination.page_number
+    size = pagination.page_size
     if query:
         search = {
             "bool": {
@@ -76,12 +77,14 @@ async def film_search(film_service: ListService = Depends(get_film_list_service)
                         index=INDEX,
                         search=search,
                         sort=sort,
-                        key=key)
+                        key=key,
+                        page=page,
+                        size=size)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,
                     imdb_rating=film.imdb_rating) for film in films]
-    return paginate(res)
+    return res
 
 
 # С помощью декоратора регистрируем обработчик film_details
@@ -120,21 +123,21 @@ async def film_details(film_service: IdRequestService = Depends(get_film_service
 
 
 @router.get('/',
-            response_model=Page[FilmList],
+            response_model=list[FilmList],
             summary="Список фильмов",
             description="Список фильмов с информацией о id, названии, рейтинге",
             response_description="id, название, рейтинг",
             )
-async def film_list(film_service: ListService = Depends(get_film_list_service),
+async def film_list(pagination: Paginate,
+                    film_service: ListService = Depends(get_film_list_service),
                     sort: str = Query(None,
                                       description=conf.SORT_DESC),
                     genre: str = Query(None,
-                                       description=conf.GENRE_DESC),
-                    page: int = Query(None,
-                                      description=conf.PAGE_DESC),
-                    size: int = Query(None,
-                                      description=conf.SIZE_DESC),
-                    ) -> Page[FilmList]:
+                                       description=conf.GENRE_DESC)
+                    ) -> list[FilmList]:
+
+    page = pagination.page_number
+    size = pagination.page_size
 
     if genre:
         search = {
@@ -161,9 +164,11 @@ async def film_list(film_service: ListService = Depends(get_film_list_service),
                         index=INDEX,
                         sort=sort,
                         search=search,
-                        key=key)
+                        key=key,
+                        page=page,
+                        size=size)
 
     res = [FilmList(uuid=film.id,
                     title=film.title,
                     imdb_rating=film.imdb_rating) for film in films]
-    return paginate(res)
+    return res

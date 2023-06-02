@@ -4,7 +4,7 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 from redis.asyncio import Redis
 
 CACHE_EXPIRE_IN_SECONDS = 60 * 5  # 5 минут
-ES_MAX_SIZE = 1000
+ES_MAX_SIZE = 100
 
 
 class IdRequestService:
@@ -52,14 +52,20 @@ class ListService:
                        index: str,
                        sort: str = None,
                        search: dict = None,
-                       key: str = None) -> Optional:
+                       key: str = None,
+                       page: int = None,
+                       size: int = None) -> Optional:
 
         if key:
             entities = await self._get_from_cache(key)
         else:
             entities = None
         if not entities:
-            entities = await self._get_from_elastic(index, sort, search)
+            entities = await self._get_from_elastic(index,
+                                                    sort,
+                                                    search,
+                                                    page,
+                                                    size)
             if not entities:
                 return None
             if key:
@@ -70,7 +76,9 @@ class ListService:
     async def _get_from_elastic(self,
                                 index: str,
                                 sort: str = None,
-                                search: dict = None) -> Optional:
+                                search: dict = None,
+                                page: int = None,
+                                size: int = None) -> Optional:
         if sort:
             try:
                 order = 'desc' if sort.startswith('-') else 'asc'
@@ -81,12 +89,24 @@ class ListService:
         else:
             sorting = None
 
+        if page and size:
+            offset = (page * size) - size
+        elif page and not size:
+            size = ES_MAX_SIZE
+            offset = (page * size) - size
+        elif not page and size:
+            offset = None
+        else:
+            offset = None
+            size = ES_MAX_SIZE
+
         try:
             docs = await self.elastic.search(
                 index=index,
                 query=search,
-                size=ES_MAX_SIZE,
+                size=size,
                 sort=sorting,
+                from_=offset
             )
         except NotFoundError:
             return None

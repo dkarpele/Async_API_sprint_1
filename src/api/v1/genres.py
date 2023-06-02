@@ -1,7 +1,4 @@
-import core.config as conf
-
 from fastapi import APIRouter, Depends, Query
-from fastapi_pagination import Page, paginate
 from api.v1 import _details, _list
 from models.model import Model
 from services.service import IdRequestService, ListService
@@ -34,22 +31,18 @@ async def genre_details(genre_service: IdRequestService = Depends(get_genre_serv
 
 
 @router.get('/',
-            response_model=Page[Genre],
+            response_model=list[Genre],
             summary="Список жанров",
             description="Список жанров с информацией о id, названии",
             response_description="id, название"
             )
-async def genre_list(genre_service: ListService = Depends(get_genre_list_service),
-                     page: int = Query(None,
-                                       description=conf.PAGE_DESC),
-                     size: int = Query(None,
-                                       description=conf.SIZE_DESC)
-                     ) -> Page[Genre]:
-    key = await _get_cache_key({'page': page,
-                          'size': size},
-                         INDEX)
-    genres = await _list(genre_service, index=INDEX, key=key)
+async def genre_list(genre_service: ListService = Depends(get_genre_list_service)
+                     ) -> list[Genre]:
+    key = await _get_cache_key(index=INDEX)
+    genres = await _list(genre_service,
+                         index=INDEX,
+                         key=key)
 
     res = [Genre(uuid=genre.id,
                  name=genre.name) for genre in genres]
-    return paginate(res)
+    return res
